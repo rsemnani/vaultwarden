@@ -1,6 +1,7 @@
 services:
   vaultwarden:
-    image: vaultwarden/server:alpine
+    # 1.35.7 patches CVE-2025-24364, CVE-2025-24365, CVE-2026-27801, CVE-2026-26012, CVE-2026-27802
+    image: vaultwarden/server:1.35.7-alpine
     container_name: vaultwarden
     env_file:
       - vaultwarden.env
@@ -9,11 +10,15 @@ services:
       - LOG_LEVEL=warn
       - EXTENDED_LOGGING=true
     volumes:
-      - ./data/vw-data/:/data/
+      - vaultwarden:/data/
     restart: always
     networks:
       - vaultwarden
     user: 1000:1000
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       vaultwarden-db:
         condition: service_healthy
@@ -25,15 +30,17 @@ services:
       retries: 55
 
   vaultwarden-db:
-    image: "mariadb"
+    image: "mariadb:lts"
     container_name: "mysql"
     restart: always
     env_file:
       - vaultwarden.env
     volumes:
-      - ./data/vw-db/:/var/lib/mysql
+      - vaultwarden_db:/var/lib/mysql
     networks:
       - vaultwarden
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: mariadb-admin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
       start_period: 5s
@@ -54,6 +61,8 @@ services:
     networks:
       - vaultwarden
     user: 1000:1000
+    security_opt:
+      - no-new-privileges:true
 
   fail2ban:
     image: lscr.io/linuxserver/fail2ban:latest
@@ -67,11 +76,14 @@ services:
       - PGID=1000
       - TZ=US/Mountain
     volumes:
-      - ./data/fail2ban/config:/config
+      - fail2ban_config:/config
       - /var/log:/var/log:ro
     restart: always
 
 networks:
   vaultwarden:
-    name: vaultwarden
-    external: true
+
+volumes:
+  vaultwarden:
+  vaultwarden_db:
+  fail2ban_config:
